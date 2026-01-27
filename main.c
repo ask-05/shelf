@@ -1,9 +1,12 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <string.h>
+#include <signal.h>
 
 #define SHELF_TOK_BUFSIZE 64
 #define SHELF_TOK_DELIM " \t\r\n\a"
@@ -146,7 +149,22 @@ void shelf_loop(void) {
     } while (status);
 }
 
+static void handler(int sig) {
+  const char *msg = "\nCTRL+C Detected. Use 'exit' to quit.\n> ";
+  write(STDOUT_FILENO, msg, 40);
+}
+
 int main(int argc, char **argv) {
+  struct sigaction sa;
+
+  sa.sa_handler = handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESTART;
+
+  if(sigaction(SIGINT, &sa, NULL) == -1) {
+    printf("Error Occurred handling CTRL+C");
+  }
+
   shelf_loop();
   return 0;
 }
