@@ -5,7 +5,6 @@ This is a unix shell created in C that will aim to provide all basic functionali
 
 # Things to do
 - Implement piping and I/O redirection
-- Add signal handling (so it doesnt close on ctrl+c)
 - Add a command history
 - Improve lexer to handle quotes and back slashes
 - Add proper error messages
