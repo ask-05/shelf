@@ -12,6 +12,7 @@
 #define SHELF_TOK_DELIM " \t\r\n\a"
 
 int num_builtin_funcs;
+pid_t child_pid = -1;  // track the currently running child process
 
 char *shelf_read_line(void) {
   char *line = NULL;
@@ -61,19 +62,21 @@ char **shelf_split_line(char *line) {
 int shelf_launch(char **args) {
   int status;
   pid_t pid = fork();
+  child_pid = pid;
   pid_t wpid;
 
   if(pid < 0) {
     perror("shelf: could not duplicate shelf; could not run fork()");
     exit(EXIT_FAILURE);
   } else if (pid == 0) {
+    signal(SIGINT, SIG_DFL); // resets signal handlers in child so it gets default SIGINT behavior
     execvp(args[0], args);
     perror("shelf: ");
     exit(EXIT_FAILURE); // only runs if execvp fails
   } else {
-    do {
-      wpid = waitpid(pid, &status, WUNTRACED);
-    } while(!WIFEXITED(status) && !WIFSTOPPED(status));
+    // child_pid = pid;  // track the child process
+    wpid = waitpid(pid, &status, WUNTRACED);
+    child_pid = -1;  // clear the child PID when done
   }
   return 1;
 }
@@ -150,21 +153,27 @@ void shelf_loop(void) {
 }
 
 static void handler(int sig) {
-  const char *msg = "\nCTRL+C Detected. Use 'exit' to quit.\n> ";
-  write(STDOUT_FILENO, msg, 40);
+  // If a child process is running, send SIGINT to it
+  if (child_pid > 0) {
+    kill(child_pid, SIGINT);
+    write(STDOUT_FILENO, "\n", 1);
+  } else {
+    write(STDOUT_FILENO, "\b\b\033[J", 6);
+  }
 }
 
 int main(int argc, char **argv) {
   struct sigaction sa;
 
+  // setup SIGINT handler
   sa.sa_handler = handler;
-  sigemptyset(&sa.sa_mask);
+  sigemptyset(&sa.sa_mask); // removes leftover garbage data from sa_mask
   sa.sa_flags = SA_RESTART;
 
   if(sigaction(SIGINT, &sa, NULL) == -1) {
-    printf("Error Occurred handling CTRL+C");
+    perror("Couldn't handle CTRL+C");
   }
 
-  shelf_loop();
+  shelf_loop(); // main loop
   return 0;
 }
