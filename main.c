@@ -7,12 +7,18 @@
 #include <sys/types.h>
 #include <string.h>
 #include <signal.h>
+#include <stdint.h>
+#include <ctype.h>
 
 #define SHELF_TOK_BUFSIZE 64
 #define SHELF_TOK_DELIM " \t\r\n\a"
 
 int num_builtin_funcs;
 pid_t child_pid = -1;  // track the currently running child process
+
+int is_delim(char c) {
+  return isspace((unsigned char)c) || c == '\a';
+}
 
 char *shelf_read_line(void) {
   char *line = NULL;
@@ -40,20 +46,41 @@ char **shelf_split_line(char *line) {
     exit(EXIT_FAILURE);
   }
 
-  token = strtok(line, SHELF_TOK_DELIM);
-  while (token != NULL) {
-    tokens[position] = token;
-    position++;
+  char *p = line;
+  while (*p) {
+    while (*p && is_delim(*p)) p++; // delimits \t\r\n\v\f\a
+    
+    if (*p == '\0') break;
+    
+    if(*p == '\"') {
+      p++;
+      tokens[position] = p;
+      
+      while (*p && *p != '\"') p++;
+      if (*p == '\"') {
+        *p = '\0';
+        p++;
+      }
+    } else {
+      tokens[position] = p;
+      
+      while (*p && !is_delim(*p)) p++;
+      if(*p != '\0') {
+        *p = '\0';
+        p++;
+      }
+    }
 
     if (position >= bufsize) {
       bufsize += SHELF_TOK_BUFSIZE;
       tokens = realloc(tokens, bufsize * sizeof(char*));
       if(!tokens) {
-        perror("shelf: memory allocation error\n");
+        perror("shelf: memory allocation error: token buffer size could not be reallocated\n");
         exit(EXIT_FAILURE);
       }
     }
-    token = strtok(NULL, SHELF_TOK_DELIM);
+    position++;
+    // token = strtok(NULL, SHELF_TOK_DELIM); // NULL is parameter so strtok moves on to next string
   }
   tokens[position] = NULL;
   return tokens;
@@ -88,10 +115,10 @@ char *shelf_builtin[] = {
 };
 
 int shelf_cd(char **args) {
-  if (args[1] == NULL) {
+  if (args[0] == NULL) {
     perror("shelf: expected argument for command cd");
   } else {
-    if (chdir(args[1]) != 0) {
+    if (chdir(args[0]) != 0) {
       perror("shelf");
     }
   }
@@ -158,7 +185,7 @@ static void handler(int sig) {
     kill(child_pid, SIGINT);
     write(STDOUT_FILENO, "\n", 1);
   } else {
-    write(STDOUT_FILENO, "\b\b\033[J", 6);
+    write(STDOUT_FILENO, "\b\b\033[J", 6); // moves cursor two steps back and removes everything after cursor
   }
 }
 
