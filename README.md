@@ -4,10 +4,8 @@
 This is a unix shell created in C that will aim to provide all basic functionality a shell needs. This is currently a work in progress.
 
 # Things to do
-- Implement piping and I/O redirection
+- I/O redirection
 - Add a command history
-- Improve lexer to handle quotes and back slashes
-- Add proper error messages
 - Modularize code into different .c and header files
 
 # Resources
